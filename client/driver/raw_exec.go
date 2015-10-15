@@ -2,14 +2,18 @@ package driver
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
+	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/nomad/client/allocdir"
 	"github.com/hashicorp/nomad/client/config"
 	"github.com/hashicorp/nomad/client/driver/args"
@@ -61,12 +65,6 @@ func (d *RawExecDriver) Fingerprint(cfg *config.Config, node *structs.Node) (boo
 }
 
 func (d *RawExecDriver) Start(ctx *ExecContext, task *structs.Task) (DriverHandle, error) {
-	// Get the command
-	command, ok := task.Config["command"]
-	if !ok || command == "" {
-		return nil, fmt.Errorf("missing command for raw_exec driver")
-	}
-
 	// Get the tasks local directory.
 	taskName := d.DriverContext.taskName
 	taskDir, ok := ctx.AllocDir.TaskDirs[taskName]
@@ -74,6 +72,40 @@ func (d *RawExecDriver) Start(ctx *ExecContext, task *structs.Task) (DriverHandl
 		return nil, fmt.Errorf("Could not find task directory for task: %v", d.DriverContext.taskName)
 	}
 	taskLocal := filepath.Join(taskDir, allocdir.TaskLocal)
+
+	// Get the command to be ran, or if omitted, download an artifact for
+	// execution. Currently a supplied command takes precedence, and an artifact
+	// is only downloaded if no command is supplied
+	command, ok := task.Config["command"]
+	if !ok || command == "" {
+		return nil, fmt.Errorf("missing command for exec driver")
+	}
+
+	source, ok := task.Config["artifact_source"]
+	if ok && source != "" {
+		// Proceed to download an artifact to be executed.
+		// We use go-getter to support a variety of protocols, but need to change
+		// file permissions of the resulted download to be executable
+
+		// Create a location to download the artifact.
+		destDir := filepath.Join(taskDir, allocdir.TaskLocal)
+
+		artifactName := path.Base(source)
+		artifactFile := filepath.Join(destDir, artifactName)
+		if err := getter.GetFile(artifactFile, source); err != nil {
+			return nil, fmt.Errorf("[Err] driver.Exec: Error downloading source for Exec driver: %s", err)
+		}
+
+		// Add execution permissions to the newly downloaded artifact
+		if runtime.GOOS != "windows" {
+			if err := syscall.Chmod(artifactFile, 0655); err != nil {
+				log.Printf("[Err] driver.Exec: Error making artifact executable: %s", err)
+			}
+		}
+
+		// re-assign the command to be the local execution path
+		command = filepath.Join(allocdir.TaskLocal, command)
+	}
 
 	// Get the environment variables.
 	envVars := TaskEnvironmentVariables(ctx, task)

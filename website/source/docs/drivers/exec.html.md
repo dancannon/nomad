@@ -21,6 +21,8 @@ scripts or other wrappers which provide higher level features.
 The `exec` driver supports the following configuration in the job spec:
 
 * `command` - The command to execute. Must be provided.
+* `artifact_source` – Source location of an executable artifact. Must be accessible
+from the Nomad client
 
 * `args` - The argument list to the command, space seperated. Optional.
 
@@ -29,6 +31,10 @@ The `exec` driver supports the following configuration in the job spec:
 The `exec` driver can run on all supported operating systems but to provide
 proper isolation the client must be run as root on non-Windows operating systems.
 Further, to support cgroups, `/sys/fs/cgroups/` must be mounted.
+
+You must specify a `command` to be executed. Optionally you can specify an
+`artifact_source` to be executed. Any `command` is assumed to be present on the 
+running client, or a downloaded artifact
 
 ## Client Attributes
 

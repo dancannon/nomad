@@ -29,7 +29,11 @@ func (e *UniversalExecutor) Limit(resources *structs.Resources) error {
 }
 
 func (e *UniversalExecutor) ConfigureTaskDir(taskName string, alloc *allocdir.AllocDir) error {
-	// No-op
+	taskDir, ok := alloc.TaskDirs[taskName]
+	if !ok {
+		return fmt.Errorf("Error finding task dir for (%s)", taskName)
+	}
+	e.Dir = taskDir
 	return nil
 }
 
