@@ -79,9 +79,6 @@ func (d *ExecDriver) Start(ctx *ExecContext, task *structs.Task) (DriverHandle, 
 				log.Printf("[Err] driver.Exec: Error making artifact executable: %s", err)
 			}
 		}
-
-		// re-assign the command to be the local execution path
-		command = filepath.Join(allocdir.TaskLocal, command)
 	}
 
 	// Get the environment variables.
