@@ -247,6 +247,19 @@ func (e *LinuxExecutor) runAs(userid string) error {
 }
 
 func (e *LinuxExecutor) Start() error {
+	// We need to expand any occurancs of NOMAD_TASK_DIR in the supplied command
+	// to be the local task dir
+	ntdMap := make(map[string]string)
+	ntdMap["NOMAD_TASK_DIR"] = allocdir.TaskLocal
+
+	cmPath, err := args.ParseAndReplace(e.cmd.Path, ntdMap)
+	if err != nil {
+		return fmt.Errorf("error parsing args")
+	}
+
+	// reconstruct the path with the interpolation
+	e.cmd.Path = strings.Join(cmPath, " ")
+
 	// Run as "nobody" user so we don't leak root privilege to the
 	// spawned process.
 	if err := e.runAs("nobody"); err == nil && e.user != nil {
@@ -264,6 +277,10 @@ func (e *LinuxExecutor) Start() error {
 	if err != nil {
 		return err
 	}
+
+	// We need to expand any arguments that rely on NOMAD_TASK_DIR, e.g.:
+	//    /bin/sleep 1 && $NOMAD_TASK_DIR/binary
+	envVars["NOMAD_TASK_DIR"] = allocdir.TaskLocal
 
 	combined := strings.Join(e.Cmd.Args, " ")
 	parsed, err := args.ParseAndReplace(combined, envVars.Map())

@@ -102,10 +102,18 @@ func (d *RawExecDriver) Start(ctx *ExecContext, task *structs.Task) (DriverHandl
 				log.Printf("[Err] driver.Exec: Error making artifact executable: %s", err)
 			}
 		}
-
-		// re-assign the command to be the local execution path
-		command = filepath.Join(allocdir.TaskLocal, command)
 	}
+
+	// expand NOMAD_TASK_DIR
+	ntdMap := make(map[string]string)
+	ntdMap["NOMAD_TASK_DIR"] = allocdir.TaskLocal
+
+	cmPath, err := args.ParseAndReplace(command, ntdMap)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing args")
+	}
+
+	cm := strings.Join(cmPath, " ")
 
 	// Get the environment variables.
 	envVars := TaskEnvironmentVariables(ctx, task)
@@ -121,7 +129,7 @@ func (d *RawExecDriver) Start(ctx *ExecContext, task *structs.Task) (DriverHandl
 	}
 
 	// Setup the command
-	cmd := exec.Command(command, cmdArgs...)
+	cmd := exec.Command(cm, cmdArgs...)
 	cmd.Dir = taskDir
 	cmd.Env = envVars.List()
 

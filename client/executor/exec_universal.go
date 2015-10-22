@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/hashicorp/nomad/client/allocdir"
+	"github.com/hashicorp/nomad/client/driver/args"
+	"github.com/hashicorp/nomad/client/driver/environment"
 	"github.com/hashicorp/nomad/nomad/structs"
 )
 
@@ -38,6 +41,31 @@ func (e *UniversalExecutor) ConfigureTaskDir(taskName string, alloc *allocdir.Al
 }
 
 func (e *UniversalExecutor) Start() error {
+	// We need to expand any occurancs of NOMAD_TASK_DIR in the supplied command
+	// to be the local task dir
+	ntdMap := make(map[string]string)
+	ntdMap["NOMAD_TASK_DIR"] = allocdir.TaskLocal
+
+	cmPath, err := args.ParseAndReplace(e.cmd.Path, ntdMap)
+	if err != nil {
+		return fmt.Errorf("error parsing command args")
+	}
+
+	// reconstruct the path with the interpolation
+	e.cmd.Path = strings.Join(cmPath, " ")
+
+	// Parse the commands arguments and replace instances of Nomad environment
+	// variables.
+	envVars, err := environment.ParseFromList(e.cmd.Env)
+	if err != nil {
+		return err
+	}
+	combined := strings.Join(e.cmd.Args, " ")
+	parsed, err := args.ParseAndReplace(combined, envVars.Map())
+	if err != nil {
+		return err
+	}
+	e.Cmd.Args = parsed
 	// We don't want to call ourself. We want to call Start on our embedded Cmd
 	return e.cmd.Start()
 }
