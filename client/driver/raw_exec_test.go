@@ -159,7 +159,7 @@ func TestRawExecDriver_Start_Artifact_expanded(t *testing.T) {
 		Name: "sleep",
 		Config: map[string]string{
 			"artifact_source": fmt.Sprintf("https://dl.dropboxusercontent.com/u/47675/jar_thing/%s", file),
-			"command":         "bash",
+			"command":         "/bin/bash",
 			"args":            fmt.Sprintf("-c '/bin/sleep 1 && %s'", filepath.Join("$NOMAD_TASK_DIR", file)),
 		},
 	}
